@@ -87,9 +87,9 @@ aws sts get-caller-identity
 **Expected Output:**
 ```json
 {
-    "UserId": "AIDAWQHCAM...",
+    "UserId": "AIDAWQHCAMGPFM230Z7HW",
     "Account": "447150580126",
-    "Arn": "arn:aws:iam::447150580126:user/..."
+    "Arn": "arn:aws:iam::447150580126:user/esey-poridhi"
 }
 ```
 
@@ -159,6 +159,16 @@ pulumi login
   <img src="./images/09_pulumi_login_terminal.png" alt="Pulumi Login Terminal Output">
 </p>
 
+**Expected Output:**
+```text
+Logging in using access token from PULUMI_ACCESS_TOKEN
+Logged in to pulumi.com as iftakharalamshihad-gmail-com (https://app.pulumi.com/iftakharalamshihad-gmail-com)
+
+You don't have any stacks yet. What would you like to do? Skip for now
+
+To get started, run `pulumi new` in an empty directory
+```
+
 ---
 
 ### Step 4: Initialize the Pulumi Project
@@ -191,20 +201,18 @@ Your new project is ready to go!
 
 ### Step 5: Create AWS SSH Key Pair
 
-Create an SSH key pair named `citus-key` so that we can connect to the coordinator and workers:
+Create an SSH key pair named `citus-key` so that we can connect to the coordinator and workers (ensure the `~/.ssh` directory exists first with `mkdir -p ~/.ssh`):
 
 ```bash
-mkdir -p ~/.ssh
-
-# Clean up any previous duplicate keys
+# 1. Remove the old locked file and delete AWS key
 rm -f ~/.ssh/citus-key.pem
 aws ec2 delete-key-pair --key-name citus-key 2>/dev/null || true
 
-# Create the key pair and lock permissions
+# 2. Generate the new key pair and secure it
 aws ec2 create-key-pair --key-name citus-key --output text --query 'KeyMaterial' > ~/.ssh/citus-key.pem
 chmod 400 ~/.ssh/citus-key.pem
 
-# Verify file existence and permissions
+# 3. Verify key file exists
 ls -l ~/.ssh/citus-key.pem
 ```
 
@@ -214,7 +222,10 @@ ls -l ~/.ssh/citus-key.pem
 
 **Expected Output:**
 ```text
--r-------- 1 poridhian poridhian 1679 ... /home/poridhian/.ssh/citus-key.pem
+{
+    "Return": true
+}
+-r-------- 1 poridhian poridhian 1679 Sep  8 07:59 /home/poridhian/.ssh/citus-key.pem
 ```
 
 ---
@@ -354,6 +365,29 @@ cat ~/.ssh/config
   <img src="./images/18_ssh_config.png" alt="Inspecting SSH Config">
 </p>
 
+**Expected Output:**
+```text
+Host controller-0
+    HostName 47.129.250.198
+    User ubuntu
+    IdentityFile ~/.ssh/citus-key.pem
+
+Host worker-0
+    HostName 47.129.232.231
+    User ubuntu
+    IdentityFile ~/.ssh/citus-key.pem
+
+Host worker-1
+    HostName 52.221.201.76
+    User ubuntu
+    IdentityFile ~/.ssh/citus-key.pem
+
+Host worker-2
+    HostName 46.137.229.122
+    User ubuntu
+    IdentityFile ~/.ssh/citus-key.pem
+```
+
 ---
 
 ### Step 8: Create Docker Compose Files for Citus
@@ -365,6 +399,7 @@ Create two configurations: one for the coordinator and one for the workers.
 ```bash
 cd ~/citus-infra
 
+# 1. Coordinator Docker Compose
 cat << 'EOF' > docker-compose-coordinator.yml
 version: '3.8'
 services:
@@ -395,6 +430,8 @@ EOF
 #### 2. Worker Compose File:
 
 ```bash
+cd ~/citus-infra
+
 cat << 'EOF' > docker-compose-worker.yml
 version: '3.8'
 services:
@@ -425,12 +462,24 @@ EOF
 
 ### Step 9: Transfer Compose Files to EC2 Nodes
 
-Copy the compose files to the coordinator and the 3 worker nodes:
+#### 1. Transfer Coordinator Compose File:
+
+Copy `docker-compose-coordinator.yml` to the Citus coordinator node (`controller-0`):
 
 ```bash
 # Copy to Coordinator
 scp -o StrictHostKeyChecking=no docker-compose-coordinator.yml controller-0:~
+```
 
+<p align="center">
+  <img src="./images/21a_scp_coordinator.png" alt="SCP Transferring Coordinator Compose File">
+</p>
+
+#### 2. Transfer Worker Compose Files:
+
+Copy `docker-compose-worker.yml` to the 3 worker nodes (`worker-0`, `worker-1`, `worker-2`):
+
+```bash
 # Copy to Workers
 scp -o StrictHostKeyChecking=no docker-compose-worker.yml worker-0:~
 scp -o StrictHostKeyChecking=no docker-compose-worker.yml worker-1:~
@@ -501,6 +550,21 @@ The coordinator verifies and displays all 3 active workers:
 
 **Expected Output:**
 ```text
+ citus_add_node 
+----------------
+              1
+(1 row)
+
+ citus_add_node 
+----------------
+              2
+(1 row)
+
+ citus_add_node 
+----------------
+              3
+(1 row)
+
  node_name | node_port 
 -----------+-----------
  10.0.1.22 |      5432 

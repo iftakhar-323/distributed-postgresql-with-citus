@@ -33,7 +33,7 @@ Citus is fully compatible with standard PostgreSQL drivers like `psycopg2`. This
 
 ## Step 1: Project Setup and Dependencies Installation
 
-Open **Terminal 1** and run the following commands to create the directory, define `requirements.txt`, create an isolated Python virtual environment, and install all required packages:
+Open **Terminal 1** and run the following commands to create the directory and define `requirements.txt`:
 
 ```bash
 # 1. Create project directory
@@ -46,7 +46,15 @@ Flask==3.0.0
 psycopg2-binary==2.9.9
 Flask-SQLAlchemy==3.1.1
 EOF
+```
 
+<p align="center">
+  <img src="./images/01_create_dir_and_requirements.png" alt="Creating project directory and requirements.txt">
+</p>
+
+Create an isolated Python virtual environment and install all required packages:
+
+```bash
 # 3. Create and activate new virtual environment
 python3 -m venv venv
 source venv/bin/activate
@@ -56,7 +64,7 @@ pip install -r requirements.txt
 ```
 
 <p align="center">
-  <img src="./images/01_requirements_and_venv.png" alt="Creating requirements, venv, and installing dependencies">
+  <img src="./images/02_venv_and_install.png" alt="Creating virtual environment and installing dependencies">
 </p>
 
 ---
@@ -137,7 +145,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/02_write_app_py.png" alt="Writing app.py">
+  <img src="./images/03_write_app_py.png" alt="Writing app.py">
 </p>
 
 Verify that `app.py` was created completely:
@@ -147,43 +155,48 @@ tail -n 5 app.py
 ```
 
 <p align="center">
-  <img src="./images/03_tail_app_py.png" alt="Verifying app.py with tail">
+  <img src="./images/04_tail_app_py.png" alt="Verifying app.py with tail">
 </p>
 
 ---
 
 ## Step 4: Start the Flask API with Citus Connection
 
-The Citus Coordinator EC2 instance runs at private IP `10.0.1.10` inside an AWS VPC. First test whether `10.0.1.10:5432` is directly reachable:
+The Citus Coordinator EC2 instance runs at private IP `10.0.1.10` inside an AWS VPC. First, test whether `10.0.1.10:5432` is directly reachable:
 
 ```bash
 python3 -c "import socket; s = socket.socket(); s.settimeout(2); print('SUCCESS' if s.connect_ex(('10.0.1.10', 5432)) == 0 else 'FAILED')"
 ```
 
-Because external client machines cannot directly route to AWS VPC private IPs, the test returns `FAILED`. To connect seamlessly and securely, establish a background SSH tunnel to `controller-0`, clean up port 5000, set `COORDINATOR_IP="127.0.0.1"`, and launch the Flask application:
+**Expected Output:**
+```text
+FAILED
+```
+
+<p align="center">
+  <img src="./images/05_connectivity_test.png" alt="Direct connectivity test returning FAILED">
+</p>
+
+Because external client machines cannot directly route to AWS VPC private IPs, the test returns `FAILED`. To connect seamlessly and securely, establish a background SSH tunnel to `controller-0` forwarding port 5432, clean up port 5000, set `COORDINATOR_IP="127.0.0.1"`, and launch the Flask application:
 
 ```bash
-# 1. Test direct connectivity (returns FAILED)
-python3 -c "import socket; s = socket.socket(); s.settimeout(2); print('SUCCESS' if s.connect_ex(('10.0.1.10', 5432)) == 0 else 'FAILED')"
-
-# 2. Establish background SSH tunnel forwarding port 5432 to coordinator
+# 1. Establish background SSH tunnel forwarding port 5432 to coordinator
 ssh -f -N -L 5432:localhost:5432 controller-0
 
-# 3. Clean up port 5000
+# 2. Clean up port 5000
 sudo fuser -k 5000/tcp 2>/dev/null || true
 
-# 4. Set localhost coordinator IP and start Flask app
+# 3. Set localhost coordinator IP and start Flask app
 export COORDINATOR_IP="127.0.0.1"
 python3 app.py
 ```
 
 <p align="center">
-  <img src="./images/04_start_flask_app.png" alt="Starting Flask App connected to Citus Cluster">
+  <img src="./images/06_start_flask_app.png" alt="Starting Flask App connected to Citus Cluster via SSH tunnel">
 </p>
 
 **Expected Output:**
 ```text
-FAILED
 * Serving Flask app 'app'
 * Debug mode: off
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
@@ -215,6 +228,10 @@ curl -X POST http://localhost:5000/events \
 {"message":"Event created","tenant_id":101}
 ```
 
+<p align="center">
+  <img src="./images/07_curl_post_event.png" alt="Verifying POST event endpoint">
+</p>
+
 ### Scenario 2: Retrieve events for a specific tenant (GET Request)
 
 ```bash
@@ -227,7 +244,7 @@ curl -X GET http://localhost:5000/events/101
 ```
 
 <p align="center">
-  <img src="./images/05_api_verification_curl.png" alt="Verifying Flask Endpoints with curl in Terminal 2">
+  <img src="./images/08_curl_get_event.png" alt="Verifying GET event endpoint">
 </p>
 
 ---
