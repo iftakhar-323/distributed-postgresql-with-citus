@@ -3,7 +3,7 @@
 In this lab, you will build a Python REST API using Flask and SQLAlchemy that connects to a distributed Citus cluster. You will create endpoints to handle multi-tenant data, inserting and querying records across sharded tables. This demonstrates how a standard Flask application interacts seamlessly with Citus just like regular PostgreSQL.
 
 <p align="center">
-  <img src="./images/architecture_diagram.png" alt="Flask and Citus Cluster Architecture Diagram">
+  <img src="./images/architecture_diagram.svg" alt="Flask and Citus Cluster Architecture Diagram">
 </p>
 
 ## Concept
