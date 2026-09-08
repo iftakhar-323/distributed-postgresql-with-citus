@@ -31,31 +31,27 @@ Citus is fully compatible with standard PostgreSQL drivers like `psycopg2`. This
 
 ---
 
-## Step 1: Create the Project Dependencies
+## Step 1: Project Setup and Dependencies Installation
 
-Open **Terminal 1** and run the following commands to create the directory and the `requirements.txt` file:
+Open **Terminal 1** and run the following commands to create the directory, define `requirements.txt`, create an isolated Python virtual environment, and install all required packages:
 
 ```bash
+# 1. Create project directory
 mkdir -p ~/project/flask-citus-app
 cd ~/project/flask-citus-app
 
+# 2. Create requirements.txt
 cat << 'EOF' > requirements.txt
 Flask==3.0.0
 psycopg2-binary==2.9.9
 Flask-SQLAlchemy==3.1.1
 EOF
-```
 
----
-
-## Step 2: Install Dependencies
-
-In the same terminal (**Terminal 1**), create and activate an isolated Python virtual environment, then install the dependencies:
-
-```bash
-cd ~/project/flask-citus-app
+# 3. Create and activate new virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
+# 4. Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -65,9 +61,9 @@ pip install -r requirements.txt
 
 ---
 
-## Step 3: Implement Database Connection and Schema
+## Step 2: Implement Database Connection and Schema
 
-In **Terminal 1**, create `database.py`. This defines the `Event` model and runs `create_distributed_table('events', 'tenant_id')` during initialization:
+In **Terminal 1**, create `database.py`. This defines the `Event` model and executes `create_distributed_table('events', 'tenant_id')` during table initialization:
 
 ```bash
 cat << 'EOF' > database.py
@@ -98,7 +94,7 @@ EOF
 
 ---
 
-## Step 4: Implement the Flask Application
+## Step 3: Implement the Flask Application
 
 In **Terminal 1**, create `app.py`:
 
@@ -111,7 +107,7 @@ from database import db, Event, setup_database
 app = Flask(__name__)
 
 # Citus coordinator connection string
-COORDINATOR_IP = os.environ.get("COORDINATOR_IP", "127.0.0.1")
+COORDINATOR_IP = os.environ.get("COORDINATOR_IP", "10.0.1.10")
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://citus:citus_password@{COORDINATOR_IP}:5432/citus'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -144,7 +140,7 @@ EOF
   <img src="./images/02_write_app_py.png" alt="Writing app.py">
 </p>
 
-Verify that the file wrote cleanly to the end:
+Verify that `app.py` was created completely:
 
 ```bash
 tail -n 5 app.py
@@ -156,18 +152,27 @@ tail -n 5 app.py
 
 ---
 
-## Step 5: Start the Flask API
+## Step 4: Start the Flask API with Citus Connection
 
-Before starting the server, make sure connection to the Citus Coordinator is established. Since the Coordinator EC2 is inside an AWS VPC, create a background SSH tunnel from the local workstation to `controller-0` on port 5432:
+The Citus Coordinator EC2 instance runs at private IP `10.0.1.10` inside an AWS VPC. First test whether `10.0.1.10:5432` is directly reachable:
 
 ```bash
-# 1. Establish background SSH tunnel to Citus Coordinator
+python3 -c "import socket; s = socket.socket(); s.settimeout(2); print('SUCCESS' if s.connect_ex(('10.0.1.10', 5432)) == 0 else 'FAILED')"
+```
+
+Because external client machines cannot directly route to AWS VPC private IPs, the test returns `FAILED`. To connect seamlessly and securely, establish a background SSH tunnel to `controller-0`, clean up port 5000, set `COORDINATOR_IP="127.0.0.1"`, and launch the Flask application:
+
+```bash
+# 1. Test direct connectivity (returns FAILED)
+python3 -c "import socket; s = socket.socket(); s.settimeout(2); print('SUCCESS' if s.connect_ex(('10.0.1.10', 5432)) == 0 else 'FAILED')"
+
+# 2. Establish background SSH tunnel forwarding port 5432 to coordinator
 ssh -f -N -L 5432:localhost:5432 controller-0
 
-# 2. Clean up any existing process on port 5000
+# 3. Clean up port 5000
 sudo fuser -k 5000/tcp 2>/dev/null || true
 
-# 3. Export Coordinator IP and start Flask app
+# 4. Set localhost coordinator IP and start Flask app
 export COORDINATOR_IP="127.0.0.1"
 python3 app.py
 ```
@@ -178,12 +183,13 @@ python3 app.py
 
 **Expected Output:**
 ```text
- * Serving Flask app 'app'
- * Debug mode: off
+FAILED
+* Serving Flask app 'app'
+* Debug mode: off
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5000
- * Running on http://10.61.9.121:5000
+* Running on all addresses (0.0.0.0)
+* Running on http://127.0.0.1:5000
+* Running on http://10.61.9.121:5000
 Press CTRL+C to quit
 ```
 
@@ -192,7 +198,7 @@ Press CTRL+C to quit
 
 ---
 
-## Step 6: Verification
+## Step 5: Verification
 
 Open a new terminal tab (**Terminal 2**) by clicking the **`+`** icon in Poridhi's web interface.
 
@@ -206,10 +212,7 @@ curl -X POST http://localhost:5000/events \
 
 **Expected Output:**
 ```json
-{
-  "message": "Event created",
-  "tenant_id": 101
-}
+{"message":"Event created","tenant_id":101}
 ```
 
 ### Scenario 2: Retrieve events for a specific tenant (GET Request)
@@ -220,13 +223,7 @@ curl -X GET http://localhost:5000/events/101
 
 **Expected Output:**
 ```json
-[
-  {
-    "event_name": "User Signup",
-    "id": 1,
-    "tenant_id": 101
-  }
-]
+[{"event_name":"User Signup","id":1,"tenant_id":101}]
 ```
 
 <p align="center">
@@ -235,7 +232,7 @@ curl -X GET http://localhost:5000/events/101
 
 ---
 
-## Step 7: Verify Sharded Data Directly on Citus Coordinator (Optional)
+## Step 6: Verify Sharded Data Directly on Citus Coordinator (Optional)
 
 In **Terminal 2**, you can inspect the PostgreSQL table directly inside the Citus Coordinator container:
 

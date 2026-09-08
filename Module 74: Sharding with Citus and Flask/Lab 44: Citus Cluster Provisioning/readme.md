@@ -234,11 +234,11 @@ import pulumi
 import pulumi_aws as aws
 import os
 
-instance_type = "t2.micro"
+instance_type = "t2.small"
 ami_id = "ami-01811d4912b4ccb26"
 key_name = "citus-key"
 
-# 1. Virtual Private Cloud (VPC) & Networking
+# 1. Networking (VPC, Subnet, Gateway, Route Table)
 vpc = aws.ec2.Vpc("citus-vpc", cidr_block="10.0.0.0/16", enable_dns_hostnames=True, enable_dns_support=True, tags={"Name": "citus-vpc"})
 igw = aws.ec2.InternetGateway("citus-igw", vpc_id=vpc.id, tags={"Name": "citus-igw"})
 subnet = aws.ec2.Subnet("citus-subnet", vpc_id=vpc.id, cidr_block="10.0.1.0/24", map_public_ip_on_launch=True, tags={"Name": "citus-subnet"})
@@ -314,7 +314,11 @@ tail -n 5 __main__.py
 
 Deploy all resources using `pulumi up`:
 
+> [!IMPORTANT]
+> In Poridhi's AWS sandbox, the IAM permission policy restricts EC2 instance types to `t2.micro`. If left as `t2.small`, AWS will return an IAM `403 UnauthorizedOperation` error. Therefore, update `instance_type` to `t2.micro` using `sed` before deploying:
+
 ```bash
+sed -i 's/instance_type = "t2.small"/instance_type = "t2.micro"/g' __main__.py
 pulumi up --yes
 ```
 
