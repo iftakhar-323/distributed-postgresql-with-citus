@@ -10,9 +10,9 @@ In this lab, you will build a Python REST API using Flask and SQLAlchemy that co
 
 | Term | Definition |
 |---|---|
-| SQLAlchemy | A SQL toolkit and Object-Relational Mapping (ORM) library for Python. |
-| Distribution Column | The column used by Citus to shard data across worker nodes (e.g., `tenant_id`). |
-| Multi-tenant | An architecture where a single instance of a software application serves multiple customers (tenants), isolated by a tenant ID. |
+| **SQLAlchemy** | A SQL toolkit and Object-Relational Mapping (ORM) library for Python. |
+| **Distribution Column** | The column used by Citus to shard data across worker nodes (e.g., `tenant_id`). |
+| **Multi-tenant** | An architecture where a single instance of a software application serves multiple customers (tenants), isolated by a tenant ID. |
 
 Citus is fully compatible with standard PostgreSQL drivers like `psycopg2`. This means your Flask application does not need any specialized Citus libraries to work. You simply define your models, mark the table as distributed by executing a specific Citus function (`create_distributed_table`), and ensure all queries include the distribution column to efficiently route them to the correct shards.
 
@@ -20,12 +20,16 @@ Citus is fully compatible with standard PostgreSQL drivers like `psycopg2`. This
   <img src="https://raw.githubusercontent.com/poridhi-lab/lab-assets/main/citus-flask-flow.png" alt="A lifecycle flow diagram showing Client POSTs data to Flask, ORM translates to SQL, Coordinator hashes tenant_id">
 </p>
 
+---
+
 ## Objectives
 
 - Configure a Python virtual environment with Flask and SQLAlchemy.
 - Implement a multi-tenant database model.
 - Build REST endpoints to insert and retrieve sharded data.
 - Verify distributed query execution and data insertion.
+
+---
 
 ## Step 1: Create the Project Dependencies
 
@@ -35,19 +39,18 @@ Open **Terminal 1** and run the following commands to create the directory and t
 mkdir -p ~/project/flask-citus-app
 cd ~/project/flask-citus-app
 
-cat <<EOF > requirements.txt
+cat << 'EOF' > requirements.txt
 Flask==3.0.0
 psycopg2-binary==2.9.9
 Flask-SQLAlchemy==3.1.1
 EOF
 ```
 
-**Expected Output:**
-*(No output is expected, but you can verify by running `cat requirements.txt`)*
+---
 
 ## Step 2: Install Dependencies
 
-In the same terminal (**Terminal 1**), create and activate an isolated Python virtual environment, then install the dependencies.
+In the same terminal (**Terminal 1**), create and activate an isolated Python virtual environment, then install the dependencies:
 
 ```bash
 cd ~/project/flask-citus-app
@@ -56,16 +59,15 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Expected Output:**
-```text
-Collecting Flask==3.0.0
-...
-Successfully installed Flask-3.0.0 Flask-SQLAlchemy-3.1.1 ...
-```
+<p align="center">
+  <img src="./images/01_requirements_and_venv.png" alt="Creating requirements, venv, and installing dependencies">
+</p>
+
+---
 
 ## Step 3: Implement Database Connection and Schema
 
-In **Terminal 1**, create `database.py`:
+In **Terminal 1**, create `database.py`. This defines the `Event` model and runs `create_distributed_table('events', 'tenant_id')` during initialization:
 
 ```bash
 cat << 'EOF' > database.py
@@ -94,8 +96,7 @@ def setup_database(app):
 EOF
 ```
 
-**Expected Output:**
-*(File created successfully. No terminal output.)*
+---
 
 ## Step 4: Implement the Flask Application
 
@@ -109,6 +110,7 @@ from database import db, Event, setup_database
 
 app = Flask(__name__)
 
+# Citus coordinator connection string
 COORDINATOR_IP = os.environ.get("COORDINATOR_IP", "127.0.0.1")
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://citus:citus_password@{COORDINATOR_IP}:5432/citus'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -138,42 +140,63 @@ if __name__ == '__main__':
 EOF
 ```
 
-**Expected Output:**
-*(File created successfully. No terminal output.)*
+<p align="center">
+  <img src="./images/02_write_app_py.png" alt="Writing app.py">
+</p>
+
+Verify that the file wrote cleanly to the end:
+
+```bash
+tail -n 5 app.py
+```
+
+<p align="center">
+  <img src="./images/03_tail_app_py.png" alt="Verifying app.py with tail">
+</p>
+
+---
 
 ## Step 5: Start the Flask API
 
-Before starting the server, ensure no other service is using port 5000. Stop any existing processes if necessary:
+Before starting the server, make sure connection to the Citus Coordinator is established. Since the Coordinator EC2 is inside an AWS VPC, create a background SSH tunnel from the local workstation to `controller-0` on port 5432:
 
 ```bash
-# Clean up any existing process on port 5000
+# 1. Establish background SSH tunnel to Citus Coordinator
+ssh -f -N -L 5432:localhost:5432 controller-0
+
+# 2. Clean up any existing process on port 5000
 sudo fuser -k 5000/tcp 2>/dev/null || true
-```
 
-In **Terminal 1**, ensure your virtual environment is still active, then start the Flask app:
-
-```bash
-cd ~/project/flask-citus-app
-source venv/bin/activate
-export COORDINATOR_IP="10.0.1.10"
+# 3. Export Coordinator IP and start Flask app
+export COORDINATOR_IP="127.0.0.1"
 python3 app.py
 ```
+
+<p align="center">
+  <img src="./images/04_start_flask_app.png" alt="Starting Flask App connected to Citus Cluster">
+</p>
 
 **Expected Output:**
 ```text
  * Serving Flask app 'app'
  * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on all addresses (0.0.0.0)
-   WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:5000
+ * Running on http://10.61.9.121:5000
+Press CTRL+C to quit
 ```
-*(Leave this terminal running. Do not close it or press Ctrl+C until the lab is complete.)*
+
+> [!IMPORTANT]
+> Leave this terminal running! Do not close it or press `Ctrl+C`.
+
+---
 
 ## Step 6: Verification
 
-Open a new terminal (**Terminal 2**). You do not need the virtual environment active just to run `curl` commands.
+Open a new terminal tab (**Terminal 2**) by clicking the **`+`** icon in Poridhi's web interface.
 
-**Scenario 1: Create an event (Success)**
+### Scenario 1: Create an event (POST Request)
 
 ```bash
 curl -X POST http://localhost:5000/events \
@@ -189,7 +212,7 @@ curl -X POST http://localhost:5000/events \
 }
 ```
 
-**Scenario 2: Retrieve events for a specific tenant (Success)**
+### Scenario 2: Retrieve events for a specific tenant (GET Request)
 
 ```bash
 curl -X GET http://localhost:5000/events/101
@@ -206,6 +229,35 @@ curl -X GET http://localhost:5000/events/101
 ]
 ```
 
+<p align="center">
+  <img src="./images/05_api_verification_curl.png" alt="Verifying Flask Endpoints with curl in Terminal 2">
+</p>
+
+---
+
+## Step 7: Verify Sharded Data Directly on Citus Coordinator (Optional)
+
+In **Terminal 2**, you can inspect the PostgreSQL table directly inside the Citus Coordinator container:
+
+```bash
+ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -c 'SELECT * FROM events;'"
+```
+
+**Expected Output:**
+```text
+ id | tenant_id |  event_name  
+----+-----------+--------------
+  1 |       101 | User Signup
+(1 row)
+```
+
+---
+
 ## Conclusion
 
-You have successfully built a Flask API integrated with a Citus cluster. By utilizing SQLAlchemy and defining a distribution column, the application efficiently routes data and queries to the appropriate distributed shards seamlessly.
+Congratulations! You have successfully built and verified a Flask REST API connected to an AWS-hosted Citus cluster:
+- Handled multi-tenant data seamlessly through SQLAlchemy.
+- Configured Citus table distribution by `tenant_id`.
+- Verified record insertion and query routing across distributed worker shards.
+
+You are now ready to proceed to **Lab 46: Distributed Schema Design**!
