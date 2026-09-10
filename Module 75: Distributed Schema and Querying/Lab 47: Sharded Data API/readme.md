@@ -16,11 +16,37 @@ When interacting with a multi-tenant Citus database, the application layer shoul
 
 ## Objectives
 
-- Configure a fresh Python environment and connect securely to Citus via an SSH tunnel.
+- Verify or establish Citus cluster connectivity via Pulumi.
+- Configure an isolated Python environment and connect securely via an SSH tunnel.
 - Define the multi-tenant database models and distribution strategy.
 - Build a `POST /orders` endpoint to insert new orders with tenant context.
 - Build a `GET /orders/<tenant_id>` endpoint to retrieve orders for a specific tenant.
 - Test the API using `curl` to observe seamless data routing.
+
+---
+
+## Prerequisites: Citus Cluster Connectivity
+
+Before proceeding with this lab, verify that the Citus Coordinator (`controller-0`) is accessible:
+
+```bash
+ssh controller-0 "sudo docker ps"
+```
+
+> [!NOTE]
+> - **If you already provisioned the cluster in Lab 44** in your current session, the command above will immediately succeed.
+> - **If you are in a fresh Poridhi terminal/container**, configure AWS CLI and launch the Citus cluster using Pulumi:
+>   ```bash
+>   aws configure set aws_access_key_id "YOUR_ACCESS_KEY_HERE"
+>   aws configure set aws_secret_access_key "YOUR_SECRET_KEY_HERE"
+>   aws configure set default.region "ap-southeast-1"
+>   aws configure set default.output "json"
+>
+>   cd ~/citus-infra || (git clone https://github.com/poridhioss/distributed-postgresql-with-citus.git /tmp/citus-repo && cp -r /tmp/citus-repo/citus-infra ~/citus-infra && cd ~/citus-infra)
+>   python3 -m venv venv && source venv/bin/activate
+>   pip install -r requirements.txt
+>   pulumi up --yes
+>   ```
 
 ---
 
@@ -48,7 +74,9 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Establish SSH Tunnel to Citus Coordinator
+---
+
+## Step 2: Establish SSH Tunnel to Citus Coordinator
 
 The Citus Coordinator runs inside the AWS VPC on EC2 instance `controller-0` at port `5432`. Establish the background SSH tunnel forwarding port `5432` to localhost:
 
@@ -58,7 +86,7 @@ ssh -f -N -L 5432:localhost:5432 controller-0
 
 ---
 
-## Step 2: Define Database Schema and Distribution
+## Step 3: Define Database Schema and Distribution
 
 In **Terminal 1**, create `database.py` to define the models (`Tenant`, `Product`, `Order`) and distribute them across Citus worker nodes:
 
@@ -120,7 +148,7 @@ tail -n 5 database.py
 
 ---
 
-## Step 3: Implement Sharded REST API Endpoints
+## Step 4: Implement Sharded REST API Endpoints
 
 In **Terminal 1**, write `app.py` containing the API endpoints for managing tenants, reference products, and sharded orders:
 
@@ -205,7 +233,7 @@ tail -n 5 app.py
 
 ---
 
-## Step 4: Start the Flask API
+## Step 5: Start the Flask API
 
 Release port 5000 if occupied, and start the Flask API in **Terminal 1**:
 
@@ -230,7 +258,7 @@ Press CTRL+C to quit
 
 ---
 
-## Step 5: Verification and Testing
+## Step 6: Verification and Testing
 
 Open **Terminal 2** to test the API endpoints using `curl`.
 

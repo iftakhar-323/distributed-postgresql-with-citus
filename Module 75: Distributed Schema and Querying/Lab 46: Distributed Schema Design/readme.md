@@ -19,11 +19,37 @@ In a multi-tenant e-commerce system, tables like `orders` grow rapidly and are a
 
 ## Objectives
 
-- Configure a fresh Python environment and connect securely to Citus via an SSH tunnel.
+- Verify or establish Citus cluster connectivity via Pulumi.
+- Configure an isolated Python environment and connect securely via an SSH tunnel.
 - Define SQLAlchemy models for `tenants`, `products`, and `orders`.
 - Use `create_distributed_table` for the `tenants` and `orders` tables.
 - Use `create_reference_table` for the `products` table.
 - Verify partitioning and replication strategy using Citus system catalogs.
+
+---
+
+## Prerequisites: Citus Cluster Connectivity
+
+Before proceeding with this lab, verify that the Citus Coordinator (`controller-0`) is accessible:
+
+```bash
+ssh controller-0 "sudo docker ps"
+```
+
+> [!NOTE]
+> - **If you already provisioned the cluster in Lab 44** in your current session, the command above will immediately succeed.
+> - **If you are in a fresh Poridhi terminal/container**, configure AWS CLI and launch the Citus cluster using Pulumi:
+>   ```bash
+>   aws configure set aws_access_key_id "YOUR_ACCESS_KEY_HERE"
+>   aws configure set aws_secret_access_key "YOUR_SECRET_KEY_HERE"
+>   aws configure set default.region "ap-southeast-1"
+>   aws configure set default.output "json"
+>
+>   cd ~/citus-infra || (git clone https://github.com/poridhioss/distributed-postgresql-with-citus.git /tmp/citus-repo && cp -r /tmp/citus-repo/citus-infra ~/citus-infra && cd ~/citus-infra)
+>   python3 -m venv venv && source venv/bin/activate
+>   pip install -r requirements.txt
+>   pulumi up --yes
+>   ```
 
 ---
 
@@ -55,7 +81,7 @@ pip install -r requirements.txt
 
 ## Step 2: Establish SSH Tunnel to Citus Coordinator
 
-The Citus Coordinator runs inside a private AWS VPC on EC2 instance `controller-0` at port `5432`. To allow your local Flask application to communicate with Citus securely, open a background SSH tunnel forwarding port `5432`:
+The Citus Coordinator runs inside the AWS VPC on EC2 instance `controller-0` at port `5432`. Establish the background SSH tunnel forwarding port `5432` to localhost:
 
 ```bash
 ssh -f -N -L 5432:localhost:5432 controller-0
@@ -172,7 +198,7 @@ tail -n 5 app.py
 
 ## Step 5: Initialize Database and Start App
 
-In **Terminal 1**, release port 5000 if occupied, and start the Flask app. This will invoke `setup_database(app)`, executing `create_distributed_table` and `create_reference_table` in Citus:
+In **Terminal 1**, release port 5000 if occupied, and start the Flask app. This invokes `setup_database(app)`, executing `create_distributed_table` and `create_reference_table` in Citus:
 
 ```bash
 sudo fuser -k 5000/tcp 2>/dev/null || true
@@ -201,7 +227,7 @@ Press CTRL+C to quit
 
 ## Step 6: Verification via Citus Coordinator
 
-To verify that the tables were created and distributed correctly, connect directly to the Citus coordinator container on `controller-0`.
+Connect directly to the Citus coordinator container on `controller-0` to verify that the tables were created and distributed correctly.
 
 Open **Terminal 2** and run the following command to check Citus distribution catalog (`pg_dist_partition`):
 
@@ -229,7 +255,7 @@ ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -
 | `h` | Hash Distributed | Data is horizontally sharded across Citus worker nodes based on a hash of the distribution column. |
 | `n` | None (Reference Table) | Data is fully replicated to all worker nodes for local zero-network joins. |
 
-You can also check the human-readable summary view via `citus_tables`:
+Check the human-readable summary view via `citus_tables`:
 
 ```bash
 ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -c 'SELECT table_name, citus_table_type FROM citus_tables;'"

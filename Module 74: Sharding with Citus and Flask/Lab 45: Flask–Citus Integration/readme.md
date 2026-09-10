@@ -24,10 +24,36 @@ Citus is fully compatible with standard PostgreSQL drivers like `psycopg2`. This
 
 ## Objectives
 
+- Verify or establish Citus cluster connectivity via Pulumi.
 - Configure a Python virtual environment with Flask and SQLAlchemy.
 - Implement a multi-tenant database model.
 - Build REST endpoints to insert and retrieve sharded data.
 - Verify distributed query execution and data insertion.
+
+---
+
+## Prerequisites: Citus Cluster Connectivity
+
+Before launching the Flask application, verify that your Citus cluster coordinator (`controller-0`) is accessible:
+
+```bash
+ssh controller-0 "sudo docker ps"
+```
+
+> [!NOTE]
+> - **If you already provisioned the cluster in Lab 44** in your current session, the command above will immediately return the running `citus_coordinator` container.
+> - **If you are starting this lab in a fresh Poridhi terminal/container**, configure your AWS credentials and launch the cluster using Pulumi:
+>   ```bash
+>   aws configure set aws_access_key_id "YOUR_ACCESS_KEY_HERE"
+>   aws configure set aws_secret_access_key "YOUR_SECRET_KEY_HERE"
+>   aws configure set default.region "ap-southeast-1"
+>   aws configure set default.output "json"
+>
+>   cd ~/citus-infra || (git clone https://github.com/poridhioss/distributed-postgresql-with-citus.git /tmp/citus-repo && cp -r /tmp/citus-repo/citus-infra ~/citus-infra && cd ~/citus-infra)
+>   python3 -m venv venv && source venv/bin/activate
+>   pip install -r requirements.txt
+>   pulumi up --yes
+>   ```
 
 ---
 
@@ -49,7 +75,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/01_create_dir_and_requirements.png" alt="Creating project directory and requirements.txt">
+  <img src="./images/01_create_dir_and_requirements.png" alt="Creating project directory and requirements.txt" width="750">
 </p>
 
 Create an isolated Python virtual environment and install all required packages:
@@ -64,7 +90,7 @@ pip install -r requirements.txt
 ```
 
 <p align="center">
-  <img src="./images/02_venv_and_install.png" alt="Creating virtual environment and installing dependencies">
+  <img src="./images/02_venv_and_install.png" alt="Creating virtual environment and installing dependencies" width="750">
 </p>
 
 ---
@@ -115,7 +141,7 @@ from database import db, Event, setup_database
 app = Flask(__name__)
 
 # Citus coordinator connection string
-COORDINATOR_IP = os.environ.get("COORDINATOR_IP", "10.0.1.10")
+COORDINATOR_IP = os.environ.get("COORDINATOR_IP", "127.0.0.1")
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://citus:citus_password@{COORDINATOR_IP}:5432/citus'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -145,7 +171,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/03_write_app_py.png" alt="Writing app.py">
+  <img src="./images/03_write_app_py.png" alt="Writing app.py" width="750">
 </p>
 
 Verify that `app.py` was created completely:
@@ -155,29 +181,14 @@ tail -n 5 app.py
 ```
 
 <p align="center">
-  <img src="./images/04_tail_app_py.png" alt="Verifying app.py with tail">
+  <img src="./images/04_tail_app_py.png" alt="Verifying app.py with tail" width="750">
 </p>
 
 ---
 
 ## Step 4: Start the Flask API with Citus Connection
 
-The Citus Coordinator EC2 instance runs at private IP `10.0.1.10` inside an AWS VPC. First, test whether `10.0.1.10:5432` is directly reachable:
-
-```bash
-python3 -c "import socket; s = socket.socket(); s.settimeout(2); print('SUCCESS' if s.connect_ex(('10.0.1.10', 5432)) == 0 else 'FAILED')"
-```
-
-**Expected Output:**
-```text
-FAILED
-```
-
-<p align="center">
-  <img src="./images/05_connectivity_test.png" alt="Direct connectivity test returning FAILED">
-</p>
-
-Because external client machines cannot directly route to AWS VPC private IPs, the test returns `FAILED`. To connect seamlessly and securely, establish a background SSH tunnel to `controller-0` forwarding port 5432, clean up port 5000, set `COORDINATOR_IP="127.0.0.1"`, and launch the Flask application:
+The Citus Coordinator EC2 instance runs at private IP `10.0.1.10` inside the AWS VPC. Establish a background SSH tunnel to `controller-0` forwarding port 5432, clean up port 5000, set `COORDINATOR_IP="127.0.0.1"`, and launch the Flask application:
 
 ```bash
 # 1. Establish background SSH tunnel forwarding port 5432 to coordinator
@@ -192,66 +203,81 @@ python3 app.py
 ```
 
 <p align="center">
-  <img src="./images/06_start_flask_app.png" alt="Starting Flask App connected to Citus Cluster via SSH tunnel">
+  <img src="./images/06_start_flask_app.png" alt="Starting Flask App connected to Citus Cluster via SSH tunnel" width="750">
 </p>
 
 **Expected Output:**
 ```text
-* Serving Flask app 'app'
-* Debug mode: off
-WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
-* Running on all addresses (0.0.0.0)
-* Running on http://127.0.0.1:5000
-* Running on http://10.61.9.121:5000
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.61.9.121:5000
 Press CTRL+C to quit
 ```
 
-> [!IMPORTANT]
-> Leave this terminal running! Do not close it or press `Ctrl+C`.
+*(Leave this running in Terminal 1).*
 
 ---
 
-## Step 5: Verification
+## Step 5: Test the API and Verify Sharding
 
-Open a new terminal tab (**Terminal 2**) by clicking the **`+`** icon in Poridhi's web interface.
+Open **Terminal 2** to test the API endpoints using `curl`.
 
-### Scenario 1: Create an event (POST Request)
-
+### 1. Insert Events for Tenant 1:
 ```bash
-curl -X POST http://localhost:5000/events \
+curl -s -X POST http://localhost:5000/events \
      -H "Content-Type: application/json" \
-     -d '{"tenant_id": 101, "event_name": "User Signup"}'
-```
-
-**Expected Output:**
-```json
-{"message":"Event created","tenant_id":101}
+     -d '{"tenant_id": 1, "event_name": "login"}'
+echo ""
 ```
 
 <p align="center">
-  <img src="./images/07_curl_post_event.png" alt="Verifying POST event endpoint">
+  <img src="./images/07_curl_post_event.png" alt="Inserting Event for Tenant 1" width="750">
 </p>
-
-### Scenario 2: Retrieve events for a specific tenant (GET Request)
-
-```bash
-curl -X GET http://localhost:5000/events/101
-```
 
 **Expected Output:**
 ```json
-[{"event_name":"User Signup","id":1,"tenant_id":101}]
+{"message":"Event created","tenant_id":1}
 ```
-
-<p align="center">
-  <img src="./images/08_curl_get_event.png" alt="Verifying GET event endpoint">
-</p>
 
 ---
 
-## Step 6: Verify Sharded Data Directly on Citus Coordinator (Optional)
+### 2. Insert Events for Tenant 2:
+```bash
+curl -s -X POST http://localhost:5000/events \
+     -H "Content-Type: application/json" \
+     -d '{"tenant_id": 2, "event_name": "page_view"}'
+echo ""
+```
 
-In **Terminal 2**, you can inspect the PostgreSQL table directly inside the Citus Coordinator container:
+**Expected Output:**
+```json
+{"message":"Event created","tenant_id":2}
+```
+
+---
+
+### 3. Query Events by Specific Tenant ID:
+```bash
+curl -s -X GET http://localhost:5000/events/1
+echo ""
+```
+
+<p align="center">
+  <img src="./images/08_curl_get_event.png" alt="Querying Sharded Events for Tenant 1" width="750">
+</p>
+
+**Expected Output:**
+```json
+[{"event_name":"login","id":1,"tenant_id":1}]
+```
+
+---
+
+### 4. Direct Database Query via Citus Coordinator:
+Verify directly inside the PostgreSQL coordinator container that the table was created and sharded:
 
 ```bash
 ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -c 'SELECT * FROM events;'"
@@ -259,19 +285,20 @@ ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -
 
 **Expected Output:**
 ```text
- id | tenant_id |  event_name  
-----+-----------+--------------
-  1 |       101 | User Signup
-(1 row)
+ id | tenant_id | event_name 
+----+-----------+------------
+  1 |         1 | login
+  2 |         2 | page_view
+(2 rows)
 ```
 
 ---
 
 ## Conclusion
 
-Congratulations! You have successfully built and verified a Flask REST API connected to an AWS-hosted Citus cluster:
-- Handled multi-tenant data seamlessly through SQLAlchemy.
-- Configured Citus table distribution by `tenant_id`.
-- Verified record insertion and query routing across distributed worker shards.
+You have successfully integrated a Flask REST API with a distributed Citus PostgreSQL cluster:
+- Established a secure SSH tunnel to the private coordinator node.
+- Defined a multi-tenant SQLAlchemy model with Citus table distribution (`events` table sharded on `tenant_id`).
+- Verified seamless data routing and retrieval through standard REST endpoints.
 
 You are now ready to proceed to **Lab 46: Distributed Schema Design**!

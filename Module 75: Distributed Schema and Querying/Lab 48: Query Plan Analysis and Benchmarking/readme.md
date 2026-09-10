@@ -21,10 +21,35 @@ Understanding how Citus plans queries is critical for building high-performance,
 
 ## Objectives
 
-- Set up an isolated project environment and connect securely to Citus via an SSH tunnel.
+- Verify or establish Citus cluster connectivity via Pulumi.
 - Generate and read distributed execution plans using PostgreSQL `EXPLAIN`.
 - Differentiate between single-shard (router) and multi-shard (adaptive) query execution.
 - Benchmark API and distributed table insertion throughput using Apache Bench (`ab`).
+
+---
+
+## Prerequisites: Citus Cluster Connectivity
+
+Before proceeding with this lab, verify that the Citus Coordinator (`controller-0`) is accessible:
+
+```bash
+ssh controller-0 "sudo docker ps"
+```
+
+> [!NOTE]
+> - **If you already provisioned the cluster in Lab 44** in your current session, the command above will immediately succeed.
+> - **If you are in a fresh Poridhi terminal/container**, configure AWS CLI and launch the Citus cluster using Pulumi:
+>   ```bash
+>   aws configure set aws_access_key_id "YOUR_ACCESS_KEY_HERE"
+>   aws configure set aws_secret_access_key "YOUR_SECRET_KEY_HERE"
+>   aws configure set default.region "ap-southeast-1"
+>   aws configure set default.output "json"
+>
+>   cd ~/citus-infra || (git clone https://github.com/poridhioss/distributed-postgresql-with-citus.git /tmp/citus-repo && cp -r /tmp/citus-repo/citus-infra ~/citus-infra && cd ~/citus-infra)
+>   python3 -m venv venv && source venv/bin/activate
+>   pip install -r requirements.txt
+>   pulumi up --yes
+>   ```
 
 ---
 
