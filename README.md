@@ -6,9 +6,6 @@ A comprehensive hands-on guide and production-grade implementation for setting u
 
 ## 📚 Table of Contents
 
-### Infrastructure as Code
-- [**`citus-infra/`**](./citus-infra/) - Standalone Pulumi project for 1-click automated deployment of the 4-node Citus cluster on AWS.
-
 ### Module 74: Sharding with Citus and Flask
 - [x] [**Lab 44: Citus Cluster Provisioning**](./Module%2074:%20Sharding%20with%20Citus%20and%20Flask/Lab%2044:%20Citus%20Cluster%20Provisioning/readme.md)
   - Infrastructure as Code with Pulumi on AWS (VPC, Subnets, Security Groups, EC2).
