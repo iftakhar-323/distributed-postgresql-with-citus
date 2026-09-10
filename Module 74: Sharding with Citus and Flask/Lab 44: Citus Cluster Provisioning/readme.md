@@ -63,6 +63,9 @@ First, view your AWS credentials from the **Credentials** panel on the right sid
 
 To prevent accidental key swapping in interactive prompts, first ensure the AWS CLI is installed, then configure your credentials non-interactively:
 
+> [!TIP]
+> If running in a fresh container, installing `awscli` ensures the `aws` command is available system-wide.
+
 ```bash
 # 1. Install AWS CLI
 sudo apt update && sudo apt install -y awscli
