@@ -61,9 +61,13 @@ First, view your AWS credentials from the **Credentials** panel on the right sid
   <img src="./images/01_aws_credentials.png" alt="Poridhi AWS Credentials Panel" width="600">
 </p>
 
-To prevent accidental key swapping in interactive prompts, configure the AWS CLI non-interactively:
+To prevent accidental key swapping in interactive prompts, first ensure the AWS CLI is installed, then configure your credentials non-interactively:
 
 ```bash
+# 1. Install AWS CLI
+sudo apt update && sudo apt install -y awscli
+
+# 2. Configure AWS CLI non-interactively
 aws configure set aws_access_key_id "YOUR_ACCESS_KEY_HERE"
 aws configure set aws_secret_access_key "YOUR_SECRET_KEY_HERE"
 aws configure set default.region "ap-southeast-1"
