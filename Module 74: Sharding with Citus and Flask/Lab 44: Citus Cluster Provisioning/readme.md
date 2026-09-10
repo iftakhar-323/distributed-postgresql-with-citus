@@ -3,7 +3,7 @@
 Citus is an open-source extension to PostgreSQL that transforms it into a distributed database, enabling horizontal scaling across multiple servers while retaining standard PostgreSQL features and full ACID compliance. It is purpose-built for multi-tenant SaaS architectures, real-time dashboards, and high-throughput time-series workloads.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/poridhiEng/lab-asset/refs/heads/main/System%20Design%20Labs%20Using%20AWS/Lab%2007/images/arch.drawio.svg" alt="Citus Coordinator and Worker Architecture">
+  <img src="https://raw.githubusercontent.com/poridhiEng/lab-asset/refs/heads/main/System%20Design%20Labs%20Using%20AWS/Lab%2007/images/arch.drawio.svg" alt="Citus Coordinator and Worker Architecture" width="700">
 </p>
 
 ---
@@ -58,7 +58,7 @@ This guide provides a comprehensive step-by-step walkthrough to provision a 4-no
 First, view your AWS credentials from the **Credentials** panel on the right side of the Poridhi interface:
 
 <p align="center">
-  <img src="./images/01_aws_credentials.png" alt="Poridhi AWS Credentials Panel">
+  <img src="./images/01_aws_credentials.png" alt="Poridhi AWS Credentials Panel" width="600">
 </p>
 
 To prevent accidental key swapping in interactive prompts, configure the AWS CLI non-interactively:
@@ -71,7 +71,7 @@ aws configure set default.output "json"
 ```
 
 <p align="center">
-  <img src="./images/02_aws_configure.png" alt="AWS Configure Commands in Terminal">
+  <img src="./images/02_aws_configure.png" alt="AWS Configure Commands in Terminal" width="750">
 </p>
 
 Now verify that AWS successfully authenticates your session:
@@ -81,7 +81,7 @@ aws sts get-caller-identity
 ```
 
 <p align="center">
-  <img src="./images/03_aws_sts_verify.png" alt="AWS STS Get Caller Identity Output">
+  <img src="./images/03_aws_sts_verify.png" alt="AWS STS Get Caller Identity Output" width="650">
 </p>
 
 **Expected Output:**
@@ -109,7 +109,7 @@ source venv/bin/activate
 ```
 
 <p align="center">
-  <img src="./images/04_setup_directory.png" alt="Creating Directory and Activating Venv">
+  <img src="./images/04_setup_directory.png" alt="Creating Directory and Activating Venv" width="750">
 </p>
 
 **Expected Output:**
@@ -127,25 +127,25 @@ Pulumi manages our cloud infrastructure using Python code.
 1. Open **[https://app.pulumi.com](https://app.pulumi.com)** in your browser and select **Continue with Google** or **Continue with GitHub**:
 
 <p align="center">
-  <img src="./images/05_pulumi_signup.png" alt="Pulumi Sign In Options">
+  <img src="./images/05_pulumi_signup.png" alt="Pulumi Sign In Options" width="650">
 </p>
 
 2. When prompted for workspace type, select **"I'm working on a personal project"** and click **Continue**:
 
 <p align="center">
-  <img src="./images/06_pulumi_workspace.png" alt="Create Workspace - Personal Project">
+  <img src="./images/06_pulumi_workspace.png" alt="Create Workspace - Personal Project" width="550">
 </p>
 
 3. In the onboarding survey, click **Skip** at the bottom:
 
 <p align="center">
-  <img src="./images/07_pulumi_skip_onboarding.png" alt="Skip Onboarding Survey">
+  <img src="./images/07_pulumi_skip_onboarding.png" alt="Skip Onboarding Survey" width="550">
 </p>
 
 4. Open the Access Tokens page at **[https://app.pulumi.com/user/settings/tokens](https://app.pulumi.com/user/settings/tokens)**. Click **Create token**, type description `citus-lab`, and copy the generated token:
 
 <p align="center">
-  <img src="./images/08_pulumi_token_create.png" alt="Pulumi Access Token Created">
+  <img src="./images/08_pulumi_token_create.png" alt="Pulumi Access Token Created" width="650">
 </p>
 
 5. In the Poridhi terminal, export your token and log in directly:
@@ -156,7 +156,7 @@ pulumi login
 ```
 
 <p align="center">
-  <img src="./images/09_pulumi_login_terminal.png" alt="Pulumi Login Terminal Output">
+  <img src="./images/09_pulumi_login_terminal.png" alt="Pulumi Login Terminal Output" width="750">
 </p>
 
 **Expected Output:**
@@ -188,7 +188,7 @@ Follow the interactive prompts:
 * **The AWS region to deploy into (aws:region):** Type **`ap-southeast-1`** and press **Enter**
 
 <p align="center">
-  <img src="./images/10_pulumi_new_project.png" alt="Pulumi Project Initialization Prompts">
+  <img src="./images/10_pulumi_new_project.png" alt="Pulumi Project Initialization Prompts" width="750">
 </p>
 
 **Expected Output:**
@@ -217,7 +217,7 @@ ls -l ~/.ssh/citus-key.pem
 ```
 
 <p align="center">
-  <img src="./images/11_ssh_key_create.png" alt="Creating AWS SSH Key Pair">
+  <img src="./images/11_ssh_key_create.png" alt="Creating AWS SSH Key Pair" width="750">
 </p>
 
 **Expected Output:**
@@ -306,7 +306,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/12_write_main_py.png" alt="Writing main.py in terminal">
+  <img src="./images/12_write_main_py.png" alt="Writing main.py in terminal" width="750">
 </p>
 
 Verify that the file wrote cleanly to the end:
@@ -316,7 +316,7 @@ tail -n 5 __main__.py
 ```
 
 <p align="center">
-  <img src="./images/13_tail_main_py.png" alt="Verifying main.py with tail">
+  <img src="./images/13_tail_main_py.png" alt="Verifying main.py with tail" width="750">
 </p>
 
 ---
@@ -334,25 +334,25 @@ pulumi up --yes
 ```
 
 <p align="center">
-  <img src="./images/14_pulumi_up_deploy.png" alt="Pulumi Deploy Preview">
+  <img src="./images/14_pulumi_up_deploy.png" alt="Pulumi Deploy Preview" width="750">
 </p>
 
 Pulumi creates the 4 EC2 instances:
 
 <p align="center">
-  <img src="./images/15_pulumi_up_instances.png" alt="EC2 Instances Created in Pulumi">
+  <img src="./images/15_pulumi_up_instances.png" alt="EC2 Instances Created in Pulumi" width="750">
 </p>
 
 Once complete, Pulumi prints the public and private IPs:
 
 <p align="center">
-  <img src="./images/16_pulumi_up_outputs.png" alt="Pulumi Outputs with IPs">
+  <img src="./images/16_pulumi_up_outputs.png" alt="Pulumi Outputs with IPs" width="700">
 </p>
 
 You can also view the active deployment in your browser on the Pulumi Cloud Dashboard:
 
 <p align="center">
-  <img src="./images/17_pulumi_web_dashboard.png" alt="Pulumi Web Dashboard Stack Deployed">
+  <img src="./images/17_pulumi_web_dashboard.png" alt="Pulumi Web Dashboard Stack Deployed" width="480">
 </p>
 
 Inspect the generated SSH configuration file:
@@ -362,7 +362,7 @@ cat ~/.ssh/config
 ```
 
 <p align="center">
-  <img src="./images/18_ssh_config.png" alt="Inspecting SSH Config">
+  <img src="./images/18_ssh_config.png" alt="Inspecting SSH Config" width="650">
 </p>
 
 **Expected Output:**
@@ -424,7 +424,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/19_compose_coordinator.png" alt="Writing docker-compose-coordinator.yml">
+  <img src="./images/19_compose_coordinator.png" alt="Writing docker-compose-coordinator.yml" width="650">
 </p>
 
 #### 2. Worker Compose File:
@@ -455,7 +455,7 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/20_compose_worker.png" alt="Writing docker-compose-worker.yml">
+  <img src="./images/20_compose_worker.png" alt="Writing docker-compose-worker.yml" width="750">
 </p>
 
 ---
@@ -472,7 +472,7 @@ scp -o StrictHostKeyChecking=no docker-compose-coordinator.yml controller-0:~
 ```
 
 <p align="center">
-  <img src="./images/21a_scp_coordinator.png" alt="SCP Transferring Coordinator Compose File">
+  <img src="./images/21a_scp_coordinator.png" alt="SCP Transferring Coordinator Compose File" width="750">
 </p>
 
 #### 2. Transfer Worker Compose Files:
@@ -490,7 +490,7 @@ scp -o StrictHostKeyChecking=no docker-compose-worker.yml worker-2:~
 > If `scp` says `Connection refused` on the workers during the first try, wait 30 seconds for the EC2 operating systems to finish their initial SSH initialization and re-run.
 
 <p align="center">
-  <img src="./images/21_scp_workers.png" alt="SCP Transferring Compose Files to Workers">
+  <img src="./images/21_scp_workers.png" alt="SCP Transferring Compose Files to Workers" width="750">
 </p>
 
 ---
@@ -516,7 +516,7 @@ ssh worker-2 "sudo docker-compose -f docker-compose-worker.yml up -d || sudo doc
 ```
 
 <p align="center">
-  <img src="./images/22_start_containers.png" alt="Starting Docker Containers on Coordinator and Workers">
+  <img src="./images/22_start_containers.png" alt="Starting Docker Containers on Coordinator and Workers" width="750">
 </p>
 
 ---
@@ -539,13 +539,13 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/23_citus_add_nodes.png" alt="Executing Citus Add Node Queries">
+  <img src="./images/23_citus_add_nodes.png" alt="Executing Citus Add Node Queries" width="700">
 </p>
 
 The coordinator verifies and displays all 3 active workers:
 
 <p align="center">
-  <img src="./images/24_citus_active_workers.png" alt="Active Worker Nodes Table Verified">
+  <img src="./images/24_citus_active_workers.png" alt="Active Worker Nodes Table Verified" width="600">
 </p>
 
 **Expected Output:**
