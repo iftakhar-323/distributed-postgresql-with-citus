@@ -1,6 +1,6 @@
 # Lab 47: Sharded Data API
 
-In this lab, you will extend your Flask application to interact with the distributed database schema created in the previous lab. You will build REST API endpoints to handle inserting new multi-tenant data and querying that sharded data efficiently.
+In this lab, you will extend your Flask application to interact with the distributed database schema. You will build REST API endpoints to handle inserting new multi-tenant data and querying that sharded data efficiently across worker nodes.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/poridhi-lab/lab-assets/main/citus-sharded-api.png" alt="A high-level system flow diagram showing an API interaction routing requests based on tenant_id">
@@ -9,23 +9,122 @@ In this lab, you will extend your Flask application to interact with the distrib
 ## Concept
 
 When interacting with a multi-tenant Citus database, the application layer should always include the distribution column (e.g., `tenant_id`) in queries and inserts. 
-- For **Inserts**: Including the `tenant_id` allows the Citus coordinator to immediately route the new record to the correct worker shard.
-- For **Queries**: Including `tenant_id` in the `WHERE` clause allows Citus to push the query down to a single worker node, completely avoiding cross-node network traffic or full table scans.
+- For **Inserts**: Including the `tenant_id` allows the Citus coordinator to immediately route the new record directly to the target worker shard.
+- For **Queries**: Including `tenant_id` in the `WHERE` clause allows Citus to push the query down to a single worker node (a single-shard router query), completely avoiding cross-node network traffic or expensive multi-shard scans.
+
+---
 
 ## Objectives
 
+- Configure a fresh Python environment and connect securely to Citus via an SSH tunnel.
+- Define the multi-tenant database models and distribution strategy.
 - Build a `POST /orders` endpoint to insert new orders with tenant context.
 - Build a `GET /orders/<tenant_id>` endpoint to retrieve orders for a specific tenant.
 - Test the API using `curl` to observe seamless data routing.
 
-## Step 1: Implement the API Endpoints
+---
 
-Open **Terminal 1** (ensure your virtual environment is active). We will update the `app.py` file to include routing for the `orders`, `tenants`, and `products` models.
+## Step 1: Project Setup and Dependencies Installation
+
+Open **Terminal 1** and set up the isolated project directory and virtual environment:
 
 ```bash
+# 1. Create and navigate into the project directory
+mkdir -p ~/project/flask-citus-app
 cd ~/project/flask-citus-app
+
+# 2. Define requirements.txt
+cat << 'EOF' > requirements.txt
+Flask==3.0.0
+psycopg2-binary==2.9.9
+Flask-SQLAlchemy==3.1.1
+EOF
+
+# 3. Create and activate a Python virtual environment
+python3 -m venv venv
 source venv/bin/activate
 
+# 4. Install dependencies
+pip install -r requirements.txt
+```
+
+### Establish SSH Tunnel to Citus Coordinator
+
+The Citus Coordinator runs inside the AWS VPC on EC2 instance `controller-0` at port `5432`. Establish the background SSH tunnel forwarding port `5432` to localhost:
+
+```bash
+ssh -f -N -L 5432:localhost:5432 controller-0
+```
+
+---
+
+## Step 2: Define Database Schema and Distribution
+
+In **Terminal 1**, create `database.py` to define the models (`Tenant`, `Product`, `Order`) and distribute them across Citus worker nodes:
+
+```bash
+cat << 'EOF' > database.py
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+
+db = SQLAlchemy()
+
+class Tenant(db.Model):
+    __tablename__ = 'tenants'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), nullable=False)
+
+class Product(db.Model):
+    __tablename__ = 'products'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    tenant_id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+
+def setup_database(app):
+    with app.app_context():
+        db.create_all()
+        
+        # Distribute tenants and orders
+        distribute_tenants = text("SELECT create_distributed_table('tenants', 'id');")
+        distribute_orders = text("SELECT create_distributed_table('orders', 'tenant_id');")
+        
+        # Make products a reference table
+        reference_products = text("SELECT create_reference_table('products');")
+        
+        try:
+            db.session.execute(distribute_tenants)
+            db.session.execute(distribute_orders)
+            db.session.execute(reference_products)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            pass
+EOF
+```
+
+Verify that `database.py` wrote cleanly:
+
+```bash
+tail -n 5 database.py
+```
+
+---
+
+## Step 3: Implement Sharded REST API Endpoints
+
+In **Terminal 1**, write `app.py` containing the API endpoints for managing tenants, reference products, and sharded orders:
+
+```bash
 cat << 'EOF' > app.py
 import os
 from flask import Flask, request, jsonify
@@ -98,16 +197,21 @@ if __name__ == '__main__':
 EOF
 ```
 
-**Expected Output:**
-*(File updated successfully. No terminal output.)*
+Verify that `app.py` was created completely:
 
-## Step 2: Start the Flask API
+```bash
+tail -n 5 app.py
+```
 
-Restart the Flask API so the new routes take effect. In **Terminal 1**:
+---
+
+## Step 4: Start the Flask API
+
+Release port 5000 if occupied, and start the Flask API in **Terminal 1**:
 
 ```bash
 sudo fuser -k 5000/tcp 2>/dev/null || true
-export COORDINATOR_IP="10.0.1.10"
+export COORDINATOR_IP="127.0.0.1"
 python3 app.py
 ```
 
@@ -115,19 +219,24 @@ python3 app.py
 ```text
  * Serving Flask app 'app'
  * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment.
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:5000
+ * Running on http://10.61.9.121:5000
+Press CTRL+C to quit
 ```
-*(Leave this running in the background).*
 
-## Step 3: Verification
+*(Leave this running in Terminal 1).*
 
-Open **Terminal 2** to run the following tests.
+---
 
-**Scenario 1: Setup reference data (Products) and a Tenant**
+## Step 5: Verification and Testing
+
+Open **Terminal 2** to test the API endpoints using `curl`.
+
+### Scenario 1: Create a Tenant
 
 ```bash
-# Create a tenant
 curl -s -X POST http://localhost:5000/tenants \
      -H "Content-Type: application/json" \
      -d '{"name": "Acme Corp"}'
@@ -139,8 +248,11 @@ echo ""
 {"id":1,"message":"Tenant created"}
 ```
 
+---
+
+### Scenario 2: Create a Reference Product
+
 ```bash
-# Create a product (Reference Data)
 curl -s -X POST http://localhost:5000/products \
      -H "Content-Type: application/json" \
      -d '{"name": "Widget", "price": 19.99}'
@@ -152,10 +264,11 @@ echo ""
 {"id":1,"message":"Product created"}
 ```
 
-**Scenario 2: Insert a Sharded Order (Success)**
+---
+
+### Scenario 3: Insert a Sharded Order
 
 ```bash
-# Insert an order for Acme Corp (tenant_id 1) and Widget (product_id 1)
 curl -s -X POST http://localhost:5000/orders \
      -H "Content-Type: application/json" \
      -d '{"tenant_id": 1, "product_id": 1, "quantity": 5}'
@@ -167,7 +280,9 @@ echo ""
 {"message":"Order created","order_id":1,"tenant_id":1}
 ```
 
-**Scenario 3: Query Sharded Orders by Tenant (Success)**
+---
+
+### Scenario 4: Query Sharded Orders by Tenant
 
 ```bash
 curl -s -X GET http://localhost:5000/orders/1
@@ -179,6 +294,28 @@ echo ""
 [{"id":1,"product_id":1,"quantity":5,"tenant_id":1}]
 ```
 
+---
+
+### Scenario 5: Direct Verification on Citus Coordinator
+
+Connect to the Citus Coordinator to verify that the row is stored in the distributed `orders` table:
+
+```bash
+ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -c 'SELECT * FROM orders;'"
+```
+
+**Expected Output:**
+```text
+ id | tenant_id | product_id | quantity 
+----+-----------+------------+----------
+  1 |         1 |          1 |        5
+(1 row)
+```
+
+---
+
 ## Conclusion
 
 You have successfully built an API layer that inserts and queries sharded data in a multi-tenant PostgreSQL environment. Because the application correctly uses the distribution column (`tenant_id`), Citus can seamlessly and efficiently route database operations directly to the shards that hold the data.
+
+You are now ready to proceed to **Lab 48: Query Plan Analysis and Benchmarking**!

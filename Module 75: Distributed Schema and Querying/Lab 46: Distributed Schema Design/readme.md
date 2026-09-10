@@ -19,7 +19,7 @@ In a multi-tenant e-commerce system, tables like `orders` grow rapidly and are a
 
 ## Objectives
 
-- Understand the architectural differences between distributed and reference tables.
+- Configure a fresh Python environment and connect securely to Citus via an SSH tunnel.
 - Define SQLAlchemy models for `tenants`, `products`, and `orders`.
 - Use `create_distributed_table` for the `tenants` and `orders` tables.
 - Use `create_reference_table` for the `products` table.
@@ -27,16 +27,45 @@ In a multi-tenant e-commerce system, tables like `orders` grow rapidly and are a
 
 ---
 
-## Step 1: Update Database Models
+## Step 1: Project Setup and Dependencies Installation
 
-Open **Terminal 1**, where the Flask application lives. If Flask is currently running from the previous lab, stop it by pressing `Ctrl + C`. Ensure your virtual environment is active:
+Open **Terminal 1** and set up the isolated project directory and virtual environment:
 
 ```bash
+# 1. Create and navigate into the project directory
+mkdir -p ~/project/flask-citus-app
 cd ~/project/flask-citus-app
+
+# 2. Define requirements.txt
+cat << 'EOF' > requirements.txt
+Flask==3.0.0
+psycopg2-binary==2.9.9
+Flask-SQLAlchemy==3.1.1
+EOF
+
+# 3. Create and activate a Python virtual environment
+python3 -m venv venv
 source venv/bin/activate
+
+# 4. Install dependencies
+pip install -r requirements.txt
 ```
 
-Now, overwrite the `database.py` file to include the new multi-tenant schema:
+---
+
+## Step 2: Establish SSH Tunnel to Citus Coordinator
+
+The Citus Coordinator runs inside a private AWS VPC on EC2 instance `controller-0` at port `5432`. To allow your local Flask application to communicate with Citus securely, open a background SSH tunnel forwarding port `5432`:
+
+```bash
+ssh -f -N -L 5432:localhost:5432 controller-0
+```
+
+---
+
+## Step 3: Define Distributed Database Models
+
+In **Terminal 1**, create `database.py` to define the multi-tenant schema:
 
 ```bash
 cat << 'EOF' > database.py
@@ -90,24 +119,24 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/01_write_database_py.png" alt="Writing database.py with Tenant, Product, and Order models">
+  <img src="./images/01_write_database_py.png" alt="Writing database.py with Tenant, Product, and Order models" width="750">
 </p>
 
-Verify that the file wrote cleanly:
+Verify that `database.py` wrote cleanly:
 
 ```bash
 tail -n 5 database.py
 ```
 
 <p align="center">
-  <img src="./images/02_tail_database_py.png" alt="Verifying database.py with tail">
+  <img src="./images/02_tail_database_py.png" alt="Verifying database.py with tail" width="750">
 </p>
 
 ---
 
-## Step 2: Update Flask Application Imports
+## Step 4: Configure Flask Application
 
-In **Terminal 1**, update `app.py` so it imports the new models (`Tenant`, `Product`, `Order`) instead of the old `Event` model:
+In **Terminal 1**, update `app.py` so it imports the new models (`Tenant`, `Product`, `Order`):
 
 ```bash
 cat << 'EOF' > app.py
@@ -130,14 +159,20 @@ EOF
 ```
 
 <p align="center">
-  <img src="./images/03_update_app_py.png" alt="Updating app.py imports">
+  <img src="./images/03_update_app_py.png" alt="Updating app.py imports" width="750">
 </p>
+
+Verify that `app.py` was created completely:
+
+```bash
+tail -n 5 app.py
+```
 
 ---
 
-## Step 3: Initialize Database and Start App
+## Step 5: Initialize Database and Start App
 
-In **Terminal 1**, ensure any old processes on port 5000 are killed, and start the Flask app. This will invoke `setup_database(app)`, which issues the `create_distributed_table` and `create_reference_table` commands to Citus:
+In **Terminal 1**, release port 5000 if occupied, and start the Flask app. This will invoke `setup_database(app)`, executing `create_distributed_table` and `create_reference_table` in Citus:
 
 ```bash
 sudo fuser -k 5000/tcp 2>/dev/null || true
@@ -146,7 +181,7 @@ python3 app.py
 ```
 
 <p align="center">
-  <img src="./images/04_start_flask_app.png" alt="Starting Flask App to initialize Citus schema">
+  <img src="./images/04_start_flask_app.png" alt="Starting Flask App to initialize Citus schema" width="750">
 </p>
 
 **Expected Output:**
@@ -160,11 +195,11 @@ WARNING: This is a development server. Do not use it in a production deployment.
 Press CTRL+C to quit
 ```
 
-*(Leave this running in the background).*
+*(Leave this running in Terminal 1).*
 
 ---
 
-## Step 4: Verification via Citus Coordinator
+## Step 6: Verification via Citus Coordinator
 
 To verify that the tables were created and distributed correctly, connect directly to the Citus coordinator container on `controller-0`.
 
@@ -175,7 +210,7 @@ ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -
 ```
 
 <p align="center">
-  <img src="./images/05_verify_citus_partitions.png" alt="Verifying distributed and reference tables in Citus partition catalog">
+  <img src="./images/05_verify_citus_partitions.png" alt="Verifying distributed and reference tables in Citus partition catalog" width="750">
 </p>
 
 **Expected Output:**
@@ -198,6 +233,17 @@ You can also check the human-readable summary view via `citus_tables`:
 
 ```bash
 ssh controller-0 "sudo docker exec -i citus_coordinator psql -U citus -d citus -c 'SELECT table_name, citus_table_type FROM citus_tables;'"
+```
+
+**Expected Output:**
+```text
+ table_name | citus_table_type 
+------------+------------------
+ events     | distributed
+ tenants    | distributed
+ orders     | distributed
+ products   | reference
+(4 rows)
 ```
 
 ---
